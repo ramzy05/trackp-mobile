@@ -21,6 +21,7 @@ import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapController;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.overlay.Marker;
+import org.osmdroid.views.overlay.gestures.RotationGestureOverlay;
 
 import java.text.DecimalFormat;
 
@@ -43,6 +44,11 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
         mapView = findViewById(R.id.mapView);
         mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE);
         mapView.setMultiTouchControls(true);
+
+        RotationGestureOverlay rotationGestureOverlay = new RotationGestureOverlay(mapView);
+        rotationGestureOverlay.setEnabled(true);
+        mapView.getOverlays().add(rotationGestureOverlay);
+
         mapController = (MapController) mapView.getController();
         mapController.setZoom(17.);  // Initial zoom level
 
@@ -63,6 +69,7 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
 
         // Add a marker overlay for the user's current location
         marker = new Marker(mapView);
+        marker.setTitle("Your location");
         Drawable drawable = ContextCompat.getDrawable(this, R.drawable.marker_icon);
         marker.setIcon(drawable);  // Set the modified drawable as the marker icon
 
@@ -71,9 +78,9 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
                 == PackageManager.PERMISSION_GRANTED) {
             Location lastLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
             if (lastLocation != null) {
-                double latitude = lastLocation.getLatitude();
-                double longitude = lastLocation.getLongitude();
-                GeoPoint userLocation = new GeoPoint(latitude, longitude);
+                double lat = lastLocation.getLatitude();
+                double lng = lastLocation.getLongitude();
+                GeoPoint userLocation = new GeoPoint(lat, lng);
                 marker.setPosition(userLocation);
                 mapController.animateTo(userLocation);
             }
@@ -115,14 +122,14 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
         }
 
         // Update marker and center of the map with user's current location
-        double latitude = location.getLatitude();
-        double longitude = location.getLongitude();
+        double lat = location.getLatitude();
+        double lng = location.getLongitude();
 
         DecimalFormat decimalFormat = new DecimalFormat("#.#####");
-        latitude = Double.parseDouble(decimalFormat.format(latitude));
-        longitude = Double.parseDouble(decimalFormat.format(longitude));
+        lat = Double.parseDouble(decimalFormat.format(lat));
+        lng = Double.parseDouble(decimalFormat.format(lng));
 
-        GeoPoint userLocation = new GeoPoint(latitude, longitude);
+        GeoPoint userLocation = new GeoPoint(lat, lng);
         marker.setPosition(userLocation);
         mapController.animateTo(userLocation);
 
