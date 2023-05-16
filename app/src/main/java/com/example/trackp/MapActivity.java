@@ -2,6 +2,8 @@ package com.example.trackp;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.location.Location;
@@ -9,8 +11,10 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
+import android.provider.Settings;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -35,6 +39,7 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
     private Context context;
     private Toast toast;
     private Location previousLocation;
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -60,12 +65,30 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
+        } else {
+            // Check if GPS is enabled
+            if (!isGPSEnabled()) {
+                // Request GPS activation
+                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                builder.setTitle("GPS Activation Required");
+                builder.setMessage("Please enable GPS to use this app.");
+                builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        // Open location settings
+                        Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                        startActivity(intent);
+                    }
+                });
+                builder.setCancelable(false);
+                builder.show();
+            }
         }
 
         // Set up location manager
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, this);
+        //locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, this);
 
         // Add a marker overlay for the user's current location
         marker = new Marker(mapView);
@@ -130,6 +153,7 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
         lng = Double.parseDouble(decimalFormat.format(lng));
 
         GeoPoint userLocation = new GeoPoint(lat, lng);
+        mapView.invalidate();
         marker.setPosition(userLocation);
         mapController.animateTo(userLocation);
 
@@ -169,5 +193,11 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
         // Stop receiving location updates and remove the handler when the activity is destroyed
         locationManager.removeUpdates(this);
         handler.removeCallbacksAndMessages(null);
+    }
+
+    // Helper method to check if GPS is enabled
+    private boolean isGPSEnabled() {
+        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        return locationManager != null && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
     }
 }
