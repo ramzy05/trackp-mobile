@@ -30,7 +30,7 @@ public class LoginActivity extends AppCompatActivity {
     private EditText editTextUsername;
     private EditText editTextPassword;
     private Button buttonLogin;
-
+    private static final String API_URL = "https://trackp-server.000webhostapp.com/api/";
     private OkHttpClient client;
 
     @Override
@@ -61,9 +61,8 @@ public class LoginActivity extends AppCompatActivity {
                 .add("username", username)
                 .add("password", password)
                 .build();
-//https://trackp-server.000webhostapp.com/api/login, http://127.0.0.1:8000/api/login
         Request request = new Request.Builder()
-                .url("https://trackp-server.000webhostapp.com/api/login")
+                .url(API_URL+"login")
                 .post(formBody)
                 .build();
 
@@ -101,7 +100,7 @@ public class LoginActivity extends AppCompatActivity {
                                 // Enregistrement du mot de passe dans le stockage local
                                 savePassword(authToken);
                                 // Lancement de l'activité de la carte (OpenStreetMap)
-                                Toast.makeText(LoginActivity.this, "You have been authenticated successfully: ", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(LoginActivity.this, "You have been authenticated successfully.", Toast.LENGTH_SHORT).show();
                                 handler.postDelayed(new Runnable() {
                                     @Override
                                     public void run() {
