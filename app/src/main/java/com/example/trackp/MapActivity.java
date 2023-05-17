@@ -88,7 +88,7 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
 
         // Set up location manager
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        //locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, this);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, this);
 
         // Add a marker overlay for the user's current location
         marker = new Marker(mapView);
@@ -124,7 +124,9 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
                     //                                          int[] grantResults)
                     return;
                 }
+
                 Location lastLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+                System.out.println(lastLocation);
                 if (lastLocation != null) {
                     onLocationChanged(lastLocation);
                 }
