@@ -10,7 +10,6 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
-import android.os.Handler;
 import android.provider.Settings;
 import android.widget.Toast;
 
@@ -35,11 +34,12 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
     private MapController mapController;
     private LocationManager locationManager;
     private Marker marker;
-    private Handler handler;
-    private Context context;
     private Toast toast;
     private Location previousLocation;
+    private long locationUpdateInterval = 5000; // Interval initial de 5s
+
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -88,9 +88,9 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
 
         // Set up location manager
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, this);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdateInterval, 0, this);
 
-        // Add a marker overlay for the user's current location
+        // Add a marker overlay for the user's /current location
         marker = new Marker(mapView);
         marker.setTitle("Your location");
         Drawable drawable = ContextCompat.getDrawable(this, R.drawable.marker_icon);
@@ -112,29 +112,6 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
         mapView.getOverlays().add(marker);
 
         // Set up handler to update location every second
-        handler = new Handler();
-        context = this;
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                // Get the latest location
-                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    return;
-                }
-
-                Location lastLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                System.out.println(lastLocation);
-                if (lastLocation != null) {
-                    onLocationChanged(lastLocation);
-                }
-
-                // Schedule the next update
-                handler.postDelayed(this, 5000);
-            }
-        }, 5000);
     }
 
     @Override
@@ -175,7 +152,17 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
         previousLocation.setLongitude(location.getLongitude());
     }
 
-
+    private void updateLocationUpdateInterval(long interval) {
+        locationUpdateInterval = interval;
+        // Mettez à jour l'intervalle de mise à jour en utilisant locationManager
+        locationManager.removeUpdates(this);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            return;
+        }
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdateInterval, 0, this);
+    }
 
     @Override
     public void onProviderDisabled(String provider) {
@@ -194,7 +181,6 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
         super.onDestroy();
         // Stop receiving location updates and remove the handler when the activity is destroyed
         locationManager.removeUpdates(this);
-        handler.removeCallbacksAndMessages(null);
     }
 
     // Helper method to check if GPS is enabled
