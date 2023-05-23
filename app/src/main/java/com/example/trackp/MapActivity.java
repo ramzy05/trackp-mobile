@@ -4,13 +4,18 @@ import android.Manifest;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.provider.Settings;
+import android.util.Log;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -18,15 +23,31 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.osmdroid.config.Configuration;
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapController;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.overlay.Marker;
+import org.osmdroid.views.overlay.Polygon;
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay;
 
+import java.io.IOException;
 import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Objects;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.FormBody;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 public class MapActivity extends AppCompatActivity implements LocationListener {
 
@@ -36,7 +57,15 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
     private Marker marker;
     private Toast toast;
     private Location previousLocation;
-    private long locationUpdateInterval = 5000; // Interval initial de 5s
+    private int locationUpdateInterval = 5000; // Interval initial de 5s
+    private String authToken;
+    double centerLatCurrent;
+    double centerLngCurrent;
+    double radiusCurrent;
+    private static final String API_URL = "https://trackp-server.000webhostapp.com/api/";
+    private static final int INITIAL_UPDATE_INTERVAL = 5000;
+    private Polygon circle;
+
 
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
 
@@ -44,6 +73,8 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
+
+        authToken = readAuthTokenFromSharedPreferences();
 
         // Initialize the MapView
         mapView = findViewById(R.id.mapView);
@@ -109,10 +140,16 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
             }
         }
 
+
+        GeoPoint circleCenter = marker.getPosition();
+        /*circle = createCircle(circleCenter, 50);
+        mapView.getOverlays().add(circle);*/
+
+
         mapView.getOverlays().add(marker);
 
-        // Set up handler to update location every second
     }
+
 
     @Override
     public void onLocationChanged(Location location) {
@@ -150,15 +187,113 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
         // Store the current location as the new previous location
         previousLocation.setLatitude(location.getLatitude());
         previousLocation.setLongitude(location.getLongitude());
+
+        if(!Objects.equals(authToken, "")){
+            sendLocationToServer(location);
+        }
+
     }
 
-    private void updateLocationUpdateInterval(long interval) {
+    private void sendLocationToServer(Location location) {
+        new SendLocationTask().execute(location);
+    }
+
+    private class SendLocationTask extends AsyncTask<Location, Void, String> {
+        @Override
+        protected String doInBackground(Location... locations) {
+            Location location = locations[0];
+            double lat = location.getLatitude();
+            double lng = location.getLongitude();
+            Log.d("MapActivity", "Sending location to server: lat=" + lat + ", lng=" + lng);
+
+            // 2. Construct the API request with the required data
+            RequestBody formBody = new FormBody.Builder()
+                    .add("lat", Double.toString(lat))
+                    .add("lng", Double.toString(lng))
+                    .build();
+            Request request = new Request.Builder()
+                    .url(API_URL + "update-location")
+                    .addHeader("Authorization", "Bearer " + authToken)
+                    .post(formBody)
+                    .build();
+
+            // 3. Send the API request using the PATCH method
+            OkHttpClient client = new OkHttpClient();
+            try (Response response = client.newCall(request).execute()) {
+                if (response.isSuccessful()) {
+                    String responseData = response.body().string();
+                    Log.d("MapActivity", "Response: " + responseData);
+                    return responseData;
+                } else {
+                    Log.e("MapActivity", "Request failed with code: " + response.code());
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+                Log.e("MapActivity", "Request failed: " + e.getMessage());
+            }
+
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(String responseData) {
+            if (responseData != null) {
+                try {
+                    JSONObject jsonObject = new JSONObject(responseData);
+
+                    // 4. Parse the response data and handle accordingly
+                    if (jsonObject.has("collection")) {
+                        JSONObject collectionObject = jsonObject.getJSONObject("collection");
+
+                        // Extract the required data from the "collection" object
+                        double centerLat = collectionObject.getDouble("center_lat");
+                        double centerLng = collectionObject.getDouble("center_lng");
+                        double radius = collectionObject.getDouble("radius");
+                        int frequency = collectionObject.getInt("frequency")*1000;
+
+
+
+                        if(locationUpdateInterval != frequency){
+                            updateLocationUpdateInterval(frequency);
+                        }
+                        // Update UI with circle and update interval
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (circle != null) {
+                                    mapView.getOverlays().remove(circle);
+                                }
+
+                                if( centerLatCurrent != centerLat || centerLngCurrent != centerLng || radiusCurrent != radius){
+                                    centerLatCurrent = centerLat;
+                                    centerLngCurrent = centerLng;
+                                    radiusCurrent = radius;
+
+                                    // Create and add circle
+                                    GeoPoint circleCenter = new GeoPoint(centerLat, centerLng);
+                                    circle = createCircle(circleCenter, radius);
+                                    mapView.getOverlays().add(circle);
+
+                                }
+
+
+
+                            }
+                        });
+                    }
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+
+    private void updateLocationUpdateInterval(int interval) {
         locationUpdateInterval = interval;
         // Mettez à jour l'intervalle de mise à jour en utilisant locationManager
         locationManager.removeUpdates(this);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
             return;
         }
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdateInterval, 0, this);
@@ -187,5 +322,36 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
     private boolean isGPSEnabled() {
         LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         return locationManager != null && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
+    }
+
+    private String readAuthTokenFromSharedPreferences() {
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        return sharedPreferences.getString("authToken", "");
+    }
+
+    private Polygon createCircle(GeoPoint center, double radius) {
+        ArrayList<GeoPoint> points = new ArrayList<>();
+
+        if (radius != 0.0) {
+            double scaledRadius = (radius * Math.pow(10, -5));
+            int numPoints = 1000000;  // Nombre de points pour représenter le cercle
+
+            for (int i = 0; i <= numPoints; i++) {
+                double angle = (2 * Math.PI * i) / numPoints;
+                double x = center.getLongitude() + (scaledRadius * Math.cos(angle));
+                double y = center.getLatitude() + (scaledRadius * Math.sin(angle));
+
+                points.add(new GeoPoint(y, x));
+            }
+        }
+
+
+        Polygon circle = new Polygon();
+        circle.setPoints(points);
+        circle.setFillColor(Color.argb(30, 0,0,255));
+        circle.setStrokeColor(Color.argb(100, 0,0,255));
+        circle.setStrokeWidth(5);
+
+        return circle;
     }
 }
