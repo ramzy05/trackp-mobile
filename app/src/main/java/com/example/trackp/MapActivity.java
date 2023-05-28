@@ -62,12 +62,13 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
     double centerLatCurrent;
     double centerLngCurrent;
     double radiusCurrent;
-    private static final String API_URL = "https://trackp-server.000webhostapp.com/api/";
+    private static final String API_URL = "http://192.168.43.195/trackpapi/public/api/";
     private static final int INITIAL_UPDATE_INTERVAL = 5000;
     private Polygon circle;
 
 
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
+    private boolean circleDrawn = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -182,7 +183,7 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
         }
 
         // Display the distance in the toast
-        toast.makeText(MapActivity.this, "Distance: " + distance + " meters", Toast.LENGTH_SHORT).show();
+        //toast.makeText(MapActivity.this, "Distance: " + distance + " meters", Toast.LENGTH_SHORT).show();
 
         // Store the current location as the new previous location
         previousLocation.setLatitude(location.getLatitude());
@@ -240,7 +241,14 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
             if (responseData != null) {
                 try {
                     JSONObject jsonObject = new JSONObject(responseData);
+                    String msgResponse = jsonObject.getString("message");
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(MapActivity.this, msgResponse, Toast.LENGTH_SHORT).show();
 
+                        }
+                    });
                     // 4. Parse the response data and handle accordingly
                     if (jsonObject.has("collection")) {
                         JSONObject collectionObject = jsonObject.getJSONObject("collection");
@@ -260,26 +268,21 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                if (circle != null) {
-                                    mapView.getOverlays().remove(circle);
-                                }
-
-                                if( centerLatCurrent != centerLat || centerLngCurrent != centerLng || radiusCurrent != radius){
-                                    centerLatCurrent = centerLat;
-                                    centerLngCurrent = centerLng;
-                                    radiusCurrent = radius;
-
-                                    // Create and add circle
+                                if (!circleDrawn) {
+                                    // Créez et ajoutez le cercle
                                     GeoPoint circleCenter = new GeoPoint(centerLat, centerLng);
                                     circle = createCircle(circleCenter, radius);
                                     mapView.getOverlays().add(circle);
-
+                                    circleDrawn = true;
                                 }
-
-
-
                             }
                         });
+                    }else{
+                        // Supprimez le cercle s'il est déjà dessiné
+                        if (circleDrawn) {
+                            mapView.getOverlays().remove(circle);
+                            circleDrawn = false;
+                        }
                     }
                 } catch (JSONException e) {
                     e.printStackTrace();
@@ -334,7 +337,8 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
 
         if (radius != 0.0) {
             double scaledRadius = (radius * Math.pow(10, -5));
-            int numPoints = 1000000;  // Nombre de points pour représenter le cercle
+            //int numPoints = 1000000;  // Nombre de points pour représenter le cercle
+            int numPoints = 1000;
 
             for (int i = 0; i <= numPoints; i++) {
                 double angle = (2 * Math.PI * i) / numPoints;
