@@ -269,11 +269,14 @@ public class MapActivity extends AppCompatActivity implements LocationListener {
                             @Override
                             public void run() {
                                 if (!circleDrawn) {
+                                    mapView.getOverlays().remove(marker);
                                     // Créez et ajoutez le cercle
                                     GeoPoint circleCenter = new GeoPoint(centerLat, centerLng);
                                     circle = createCircle(circleCenter, radius);
-                                    mapView.getOverlays().add(circle);
                                     circleDrawn = true;
+                                    mapView.getOverlays().add(circle);
+                                    mapView.getOverlays().add(marker);
+
                                 }
                             }
                         });
